@@ -1,5 +1,5 @@
 # dscripts
-So far this is a repository for bulk of python scripts for data science.
+So far this is a repository for bulk of Python scripts for data science.
 
 It started after Girija Ravishankar persuaded me to take part in one of the Kaggle challenges 'for fun of learning'.
 
