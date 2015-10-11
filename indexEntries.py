@@ -89,13 +89,19 @@ conn = sqlite3.connect(indexfilename)
 cur = conn.cursor() 
 
 
-
+bulklim = 1000
 with open(filename,'rt') as f:
 	headers = extract_values(f.readline()) #get first file line and extract header names from it
 
 	header_query = ('''CREATE TABLE rawdata (''' + py_str_arg_list(len(headers)) + ''')''').format(*headers) #form an SQL query that creates a table with headers extracted from CSV
 	cur.execute(header_query) #execute the SQL query that we formed - {header_query} by calling the execute() method
 
+	# insert_query = '''INSERT INTO rawdata ''' + ''' VALUES ''' + dbapiparams(len(datalist)) #we can't do one single query right now because with more than 1400 parameters we exceed the variable limit set by sqlite3
+	insert_query = '''INSERT INTO rawdata (''' + ''','''.join(headers[:querylimit]) + ''') VALUES ''' + dbapiparams(querylimit) #form an SQL query to create 1 table line using DBAPI syntax
+	update_query = '''UPDATE rawdata SET ''' + sqlupdateparams(headers[querylimit:]) + ''' WHERE ''' + headers[0] + '''=?'''# do same as above for remaining values
+
+	linebulk_insert = []
+	linebulk_update = []
 	for lineind, line in enumerate(f): #enumerate() doesn't create a new list, but only a generator so we can get line numbers
 		if lineind > 0: #all table INSERTs will start from second file line
 			linevalues = line.split(separator)
@@ -104,18 +110,21 @@ with open(filename,'rt') as f:
 				datalist = linevalues
 				datalist[0] = int(datalist[0])
 				if not line == '': #empty lines are dropped
-					# insert_query = '''INSERT INTO rawdata ''' + ''' VALUES ''' + dbapiparams(len(datalist)) #we can't do one single query right now because with more than 1400 parameters we exceed the variable limit set by sqlite3
-					insert_query = '''INSERT INTO rawdata (''' + ''','''.join(headers[:querylimit]) + ''') VALUES ''' + dbapiparams(querylimit) #form an SQL query to create 1 table line using DBAPI syntax
-					update_query = '''UPDATE rawdata SET ''' + sqlupdateparams(headers[querylimit:]) + ''' WHERE ''' + headers[0] + '''=?'''# do same as above for remaining values
-					cur.execute(insert_query, tuple(datalist[:querylimit])) # execute the INSERT query by giving list of headers and list of values as query parameters
-					cur.execute(update_query, tuple(datalist[querylimit:] + [datalist[0]])) # last supplied parameter is the ID which is the first in {datalist}. We supply a tuple after concatenating two lists of strings appropriately.
-		
-		conn.commit() #commit the changes to the database
+					linebulk_insert = linebulk_insert + [tuple(datalist[:querylimit])]
+					linebulk_update = linebulk_update + [tuple(datalist[querylimit:]+[datalist[0]])]
+					# cur.execute(insert_query, tuple(datalist[:querylimit])) # execute the INSERT query by giving list of headers and list of values as query parameters
+					# cur.execute(update_query, tuple(datalist[querylimit:] + [datalist[0]])) # last supplied parameter is the ID which is the first in {datalist}. We supply a tuple after concatenating two lists of strings appropriately.
+					if lineind%bulklim==0:
+						cur.executemany(insert_query,linebulk_insert)
+						cur.executemany(update_query,linebulk_update)
+						linebulk_insert = []
+						linebulk_update = []
 
+		conn.commit() #commit the changes to the database
 		if echo == 'echo': # output progress every fixed number of lines; but checking this condition and printing slows it down a little bit
 			if lineind%(13*7*11) == 1:
 				print "Got through %d lines.." % lineind
-
+		# if lineind == 10000: break
 conn.close() #close the connection to the DB just like we have to close files
 
 
