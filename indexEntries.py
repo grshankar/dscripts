@@ -121,9 +121,9 @@ with open(filename,'rt') as f:
 						linebulk_update = []
 
 		conn.commit() #commit the changes to the database
-		if echo == 'echo': # output progress every fixed number of lines; but checking this condition and printing slows it down a little bit
-			if lineind%(13*7*11) == 1:
-				print "Got through %d lines.." % lineind
+		# if echo == 'echo': # output progress every fixed number of lines; but checking this condition and printing slows it down a little bit
+		# 	if lineind%(13*7*11) == 1:
+		# 		print "Got through %d lines.." % lineind
 		# if lineind == 10000: break
 conn.close() #close the connection to the DB just like we have to close files
 
